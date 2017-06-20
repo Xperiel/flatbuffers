@@ -359,6 +359,7 @@ struct IDLOptions {
   bool generate_object_based_api;
   std::string cpp_object_api_pointer_type;
   std::string cpp_object_api_string_type;
+  std::string cpp_file_suffix;
   bool union_value_namespacing;
   bool allow_non_utf8;
   std::string include_prefix;
@@ -407,6 +408,7 @@ struct IDLOptions {
       escape_proto_identifiers(false),
       generate_object_based_api(false),
       cpp_object_api_pointer_type("std::unique_ptr"),
+      cpp_file_suffix("_generated"),
       union_value_namespacing(true),
       allow_non_utf8(false),
       keep_include_path(false),

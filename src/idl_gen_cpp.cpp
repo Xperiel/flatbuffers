@@ -28,9 +28,10 @@ inline char ToUpper(char c) {
   return static_cast<char>(::toupper(c));
 }
 
-static std::string GeneratedFileName(const std::string &path,
+static std::string GeneratedFileName(const IDLOptions& opts,
+                                     const std::string &path,
                                      const std::string &file_name) {
-  return path + file_name + "_generated.h";
+  return path + file_name + opts.cpp_file_suffix + ".h";
 }
 
 namespace cpp {
@@ -79,7 +80,7 @@ class CppGenerator : public BaseGenerator {
 
       code_ += "#include \"" + parser_.opts.include_prefix +
                (parser_.opts.keep_include_path ? noext : basename) +
-               "_generated.h\"";
+               parser_.opts.cpp_file_suffix + ".h\"";
       num_includes++;
     }
     if (num_includes) code_ += "";
@@ -268,7 +269,7 @@ class CppGenerator : public BaseGenerator {
     // Close the include guard.
     code_ += "#endif  // " + include_guard;
 
-    const auto file_path = GeneratedFileName(path_, file_name_);
+    const auto file_path = GeneratedFileName(parser_.opts, path_, file_name_);
     const auto final_code = code_.ToString();
     return SaveFile(file_path.c_str(), final_code, false);
   }
@@ -2224,7 +2225,7 @@ std::string CPPMakeRule(const Parser &parser, const std::string &path,
   const auto filebase =
       flatbuffers::StripPath(flatbuffers::StripExtension(file_name));
   const auto included_files = parser.GetIncludedFilesRecursive(file_name);
-  std::string make_rule = GeneratedFileName(path, filebase) + ": ";
+  std::string make_rule = GeneratedFileName(parser.opts, path, filebase) + ": ";
   for (auto it = included_files.begin(); it != included_files.end(); ++it) {
     make_rule += " " + *it;
   }
