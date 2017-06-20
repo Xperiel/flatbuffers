@@ -1640,6 +1640,27 @@ void Parser::MarkGenerated() {
   }
 }
 
+void Parser::ClearGeneratedOnRootFiles() {
+  for (auto it = enums_.vec.begin();
+           it != enums_.vec.end(); ++it) {
+    if ((*it)->generated && root_files_.find((*it)->file) != root_files_.end()) {
+      (*it)->generated = false;
+    }
+  }
+  for (auto it = structs_.vec.begin();
+           it != structs_.vec.end(); ++it) {
+    if ((*it)->generated && root_files_.find((*it)->file) != root_files_.end()) {
+      (*it)->generated = false;
+    }
+  }
+  for (auto it = services_.vec.begin();
+           it != services_.vec.end(); ++it) {
+    if ((*it)->generated && root_files_.find((*it)->file) != root_files_.end()) {
+      (*it)->generated = false;
+    }
+  }
+}
+
 CheckedError Parser::ParseNamespace() {
   NEXT();
   auto ns = new Namespace();
@@ -2019,6 +2040,43 @@ CheckedError Parser::StartParseFile(const char *source, const char *source_filen
 CheckedError Parser::DoParse(const char *source, const char **include_paths,
                              const char *source_filename,
                              const char *include_filename) {
+  if (source_filename) {
+    root_files_.insert(source_filename);
+  }
+  ECHECK(RecursiveParse(source, include_paths, source_filename, include_filename));
+  ClearGeneratedOnRootFiles();
+
+  // Check that all types were defined.
+  for (auto it = structs_.vec.begin(); it != structs_.vec.end(); ++it) {
+    if ((*it)->predecl) {
+      return Error("type referenced but not defined: " + (*it)->name);
+    }
+  }
+
+  // This check has to happen here and not earlier, because only now do we
+  // know for sure what the type of these are.
+  for (auto it = enums_.vec.begin(); it != enums_.vec.end(); ++it) {
+    auto &enum_def = **it;
+    if (enum_def.is_union) {
+      for (auto val_it = enum_def.vals.vec.begin();
+           val_it != enum_def.vals.vec.end();
+           ++val_it) {
+        auto &val = **val_it;
+        if (opts.lang_to_generate != IDLOptions::kCpp &&
+            val.union_type.struct_def && val.union_type.struct_def->fixed)
+          return Error(
+                "only tables can be union elements in the generated language: "
+                + val.name);
+      }
+    }
+  }
+  return NoError();
+}
+
+CheckedError Parser::RecursiveParse(const char *source,
+                                    const char **include_paths,
+                                    const char *source_filename,
+                                    const char *include_filename) {
   if (source_filename &&
       included_files_.find(source_filename) == included_files_.end()) {
     included_files_[source_filename] = include_filename ? include_filename : "";
@@ -2070,8 +2128,8 @@ CheckedError Parser::DoParse(const char *source, const char **include_paths,
         std::string contents;
         if (!LoadFile(filepath.c_str(), true, &contents))
           return Error("unable to load include file: " + name);
-        ECHECK(DoParse(contents.c_str(), include_paths, filepath.c_str(),
-                       name.c_str()));
+        ECHECK(RecursiveParse(contents.c_str(), include_paths,
+                              filepath.c_str(), name.c_str()));
         // We generally do not want to output code for any included files:
         if (!opts.generate_all) MarkGenerated();
         // This is the easiest way to continue this file after an include:
@@ -2081,7 +2139,8 @@ CheckedError Parser::DoParse(const char *source, const char **include_paths,
         // entered into included_files_.
         // This is recursive, but only go as deep as the number of include
         // statements.
-        return DoParse(source, include_paths, source_filename, include_filename);
+        return RecursiveParse(source, include_paths,
+                              source_filename, include_filename);
       }
       EXPECT(';');
     } else {
@@ -2145,28 +2204,6 @@ CheckedError Parser::DoParse(const char *source, const char **include_paths,
       ECHECK(ParseService());
     } else {
       ECHECK(ParseDecl());
-    }
-  }
-  for (auto it = structs_.vec.begin(); it != structs_.vec.end(); ++it) {
-    if ((*it)->predecl) {
-      return Error("type referenced but not defined: " + (*it)->name);
-    }
-  }
-  // This check has to happen here and not earlier, because only now do we
-  // know for sure what the type of these are.
-  for (auto it = enums_.vec.begin(); it != enums_.vec.end(); ++it) {
-    auto &enum_def = **it;
-    if (enum_def.is_union) {
-      for (auto val_it = enum_def.vals.vec.begin();
-           val_it != enum_def.vals.vec.end();
-           ++val_it) {
-        auto &val = **val_it;
-        if (opts.lang_to_generate != IDLOptions::kCpp &&
-            val.union_type.struct_def && val.union_type.struct_def->fixed)
-          return Error(
-                "only tables can be union elements in the generated language: "
-                + val.name);
-      }
     }
   }
   return NoError();

@@ -18,6 +18,7 @@
 #define FLATBUFFERS_IDL_H_
 
 #include <map>
+#include <set>
 #include <stack>
 #include <memory>
 #include <functional>
@@ -528,6 +529,9 @@ class Parser : public ParserState {
   // Mark all definitions as already having code generated.
   void MarkGenerated();
 
+  // Clears the generated flag on all definitions in root files.
+  void ClearGeneratedOnRootFiles();
+
   // Get the files recursively included by the given file. The returned
   // container will have at least the given file.
   std::set<std::string> GetIncludedFilesRecursive(
@@ -611,6 +615,10 @@ private:
                                     const char **include_paths,
                                     const char *source_filename,
                                     const char *include_filename);
+  FLATBUFFERS_CHECKED_ERROR RecursiveParse(const char *_source,
+                                           const char **include_paths,
+                                           const char *source_filename,
+                                           const char *include_filename);
   FLATBUFFERS_CHECKED_ERROR CheckClash(std::vector<FieldDef*> &fields,
                                        StructDef *struct_def,
                                        const char *suffix,
@@ -629,6 +637,7 @@ private:
   std::string file_identifier_;
   std::string file_extension_;
 
+  std::set<std::string> root_files_;
   std::map<std::string, std::string> included_files_;
   std::map<std::string, std::set<std::string>> files_included_per_file_;
   std::vector<std::string> native_included_files_;
